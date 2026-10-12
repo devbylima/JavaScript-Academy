@@ -9,6 +9,8 @@ import { beginnerGuides, beginnerLessonText } from './data/beginnerExercises.js'
 import { chapterUnlocked, completeExercise, loadProgress, saveProgress } from './core/progress.js';
 import { gradeRun } from './core/grading.js';
 import { readTheme, saveTheme } from './core/theme.js';
+import { getPlaygroundType } from './core/playgrounds.js';
+import { SQLLearningPath } from './SQLLearningPath.jsx';
 import './styles.css';
 import './responsive-theme.css';
 
@@ -110,15 +112,32 @@ const chapters = topics.map((topic, ci) => ({...topic, id:ci+1, lesson:beginnerL
 
 function readProgress(){ return loadProgress(localStorage, chapters.reduce((n,c)=>n+c.exercises.length,0)); }
 function escapeScript(code){ return code.replace(/<\/script/gi, '<\\/script'); }
-function makeDocument(code, runId, checkCode = '', theme = 'light') {
+const defaultDomHtml = '<button id="action" type="button">Klick mich</button><button id="reset" type="button">Zurücksetzen</button><div id="output">0</div><ul id="list"></ul>';
+function makeDocument(code, runId, checkCode = '', theme = 'light', options = {}) {
   const safeCode=escapeScript(code), safeChecks=escapeScript(checkCode);
-  const colors=theme==='dark'?{page:'#171B19',surface:'#202622',text:'#E7ECE8',accent:'#91B69A',accentText:'#171B19',line:'#343D37'}:{page:'#f8f7f2',surface:'#fffefa',text:'#293632',accent:'#506d5b',accentText:'#ffffff',line:'#e9ebe5'};
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"><style>body{font:14px system-ui;color:${colors.text};padding:16px;background:${colors.page}}button{padding:8px 12px;border:1px solid ${colors.line};border-radius:7px;background:${colors.accent};color:${colors.accentText};margin:0 6px 8px 0}#output{padding:8px;background:${colors.surface};border:1px solid ${colors.line};border-radius:6px;min-height:20px}ul{padding-left:22px}</style></head><body><button id="action" type="button">Klick mich</button><button id="reset" type="button">Zurücksetzen</button><div id="output">0</div><ul id="list"></ul><script>
+  const html=options.starterHtml||defaultDomHtml;
+  const manual=JSON.stringify(options.manualInteraction||null).replace(/</g,'\\u003c');
+  const colors=theme==='dark'?{page:'#0A0A0B',surface:'#161619',text:'#F5F5F7',accent:'#A78BFA',accentText:'#0A0A0B',line:'#2B2B30'}:{page:'#f8f7f2',surface:'#fffefa',text:'#293632',accent:'#506d5b',accentText:'#ffffff',line:'#e9ebe5'};
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"><style>body{font:14px system-ui;color:${colors.text};padding:16px;background:${colors.page}}button{padding:8px 12px;border:1px solid ${colors.line};border-radius:7px;background:${colors.accent};color:${colors.accentText};margin:0 6px 8px 0;cursor:pointer}#output{padding:8px;background:${colors.surface};border:1px solid ${colors.line};border-radius:6px;min-height:20px}ul{padding-left:22px}</style></head><body>${html}<script>
     const runId=${JSON.stringify(runId)}, send=(type,value)=>parent.postMessage({source:'academy-runner',runId,type,value},'*');
+    const manual=${manual}; let manualStep=0;
     const logs=[], checks=[];
     console.log=(...args)=>{const line=args.map(value=>{try{return typeof value==='object'?JSON.stringify(value):String(value)}catch{return String(value)}}).join(' ');logs.push(line);send('log',line)};
     console.error=(...args)=>send('error',args.map(String).join(' '));
     window.onerror=message=>{send('error',String(message));return true};
+    if(manual?.steps?.length) document.addEventListener('click',event=>{
+      if(!event.isTrusted)return;
+      const step=manual.steps[manualStep];
+      if(!step||!event.target.closest(step.target))return;
+      setTimeout(()=>{
+        const checks=step.checks.map(check=>{const node=document.querySelector(check.selector);let actual='Element nicht gefunden';
+          if(node){if(check.type==='text')actual=node.textContent;else if(check.type==='childCount')actual=node.children.length;else if(check.type==='value')actual=node.value;else if(check.type==='class')actual=node.classList.contains(check.equals);}
+          return {label:check.selector,passed:String(actual)===String(check.equals),actual:String(actual)};
+        });
+        if(checks.every(check=>check.passed))manualStep+=1;
+        send('interaction',{checks,completed:manualStep>=manual.steps.length,step:manualStep,total:manual.steps.length});
+      },0);
+    },true);
     const __assert=(label,passed,actual=passed)=>checks.push({label:String(label),passed:Boolean(passed),actual:String(actual)});
     try{${safeCode}\n${safeChecks}\n}catch(error){send('error',error.name+': '+error.message)}
     send('done',{logs,checks});
@@ -126,6 +145,7 @@ function makeDocument(code, runId, checkCode = '', theme = 'light') {
 }
 function App(){
   const [theme,setTheme]=useState(()=>readTheme());
+  const [language,setLanguage]=useState(()=>{try{return localStorage.getItem('javascript-academy-language')==='sql'?'sql':'javascript';}catch{return 'javascript';}});
   const [progress,setProgress]=useState(readProgress);
   const [current,setCurrent]=useState(progress.last||'c1-1');
   const [code,setCode]=useState('');
@@ -143,15 +163,22 @@ function App(){
   const done=new Set(progress.done);
   useEffect(()=>{setCode(exercise.starter);setResult(null);setHint(0);setShowSolution(false);setPreviewDocument('');previewRunRef.current=null;if(previewTimerRef.current){clearTimeout(previewTimerRef.current);previewTimerRef.current=null;}setProgress(p=>({...p,last:exercise.id}));},[exercise]);
   useEffect(()=>{saveProgress(localStorage,progress);},[progress]);
-  useEffect(()=>{document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;saveTheme(theme);},[theme]);
+  useEffect(()=>{document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;const themeColor=document.querySelector('meta[name="theme-color"]');if(themeColor)themeColor.content=theme==='dark'?'#0A0A0B':'#f8f6f0';saveTheme(theme);},[theme]);
+  useEffect(()=>{try{localStorage.setItem('javascript-academy-language',language);}catch{/* storage may be disabled */}},[language]);
   useEffect(()=>{
     const onPreviewMessage=(event)=>{
       if(event.source!==previewRef.current?.contentWindow||event.data?.source!=='academy-runner'||event.data?.runId!==previewRunRef.current)return;
       if(event.data.type==='done'&&previewTimerRef.current){clearTimeout(previewTimerRef.current);previewTimerRef.current=null;}
+      if(event.data.type==='interaction'){
+        const interaction=event.data.value||{};
+        const grade=gradeRun({checks:Array.isArray(interaction.checks)?interaction.checks:[]});
+        if(interaction.completed&&grade.passed){setResult({...grade,status:'success',expected:exercise.expected,actual:`Interaktion ${interaction.step}/${interaction.total} erfolgreich`});setProgress(p=>completeExercise(p,exercise));}
+        else setResult({...grade,status:grade.passed?'awaiting-interaction':grade.status==='error'?'error':'incorrect',expected:exercise.expected,actual:`Interaktion ${interaction.step||0}/${interaction.total||0}`,error:grade.passed?null:'Das sichtbare Verhalten stimmt noch nicht. Prüfe den Event-Handler und versuche es erneut.'});
+      }
     };
     window.addEventListener('message',onPreviewMessage);
     return ()=>{window.removeEventListener('message',onPreviewMessage);if(previewTimerRef.current)clearTimeout(previewTimerRef.current);};
-  },[]);
+  },[exercise]);
   const unlocked=(id)=> chapterUnlocked(id,progress.done);
   function run(){
     setResult({status:'running',logs:[]});
@@ -161,7 +188,7 @@ function App(){
     frame.setAttribute('sandbox','allow-scripts');
     frame.title='Isolierte Verhaltensprüfung';
     frame.style.cssText='position:fixed;width:1px;height:1px;left:-10000px;border:0';
-    frame.srcdoc=makeDocument(code,runId,exercise.check||'',theme);
+    frame.srcdoc=makeDocument(code,runId,exercise.manualInteraction?'':exercise.check||'',theme,{starterHtml:exercise.starterHtml,manualInteraction:exercise.manualInteraction});
     document.body.append(frame);
     let logs=[], error=null, finished=false;
     const cleanup=()=>{window.removeEventListener('message',onMessage);frame.remove();};
@@ -174,6 +201,7 @@ function App(){
       if(event.data.type==='done'&&!finished){
         finished=true;clearTimeout(timer);cleanup();
         const received=event.data.value||{};
+        if(exercise.manualInteraction){setResult({status:'awaiting-interaction',logs:received.logs||logs,expected:exercise.expected,actual:'Code läuft. Klicke jetzt die passende Steuerfläche in der Live-Vorschau.'});return;}
         const grade=gradeRun({logs:received.logs||logs,checks:received.checks||[],error,expectedOutput:exercise.expected});
         setResult({...grade,logs:received.logs||logs,expected:exercise.expected});
         if(grade.passed)setProgress(p=>completeExercise(p,exercise));
@@ -190,19 +218,27 @@ function App(){
           setResult({status:'error',logs:[],error:'Die Vorschau wurde nach 1,5 s wegen eines möglichen Endloslaufs zurückgesetzt.'});
         }
       },1500);
-      setPreviewDocument(makeDocument(code,previewId,'',theme));
+      setPreviewDocument(makeDocument(code,previewId,'',theme,{starterHtml:exercise.starterHtml,manualInteraction:exercise.manualInteraction}));
     }
+  }
+  function resetPreview(){
+    const previewId=`preview-reset-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+    previewRunRef.current=previewId;
+    if(previewTimerRef.current)clearTimeout(previewTimerRef.current);
+    previewTimerRef.current=setTimeout(()=>{if(previewRunRef.current===previewId){previewRunRef.current=null;previewTimerRef.current=null;setPreviewDocument('');setResult({status:'error',error:'Die Vorschau wurde nach 1,5 s zurückgesetzt. Prüfe auf eine Endlosschleife.'});}},1500);
+    setPreviewDocument(makeDocument(code,previewId,'',theme,{starterHtml:exercise.starterHtml,manualInteraction:exercise.manualInteraction}));
   }
   const exerciseIndex=Number(current.split('-')[1])-1;
   const next=chapter.exercises[exerciseIndex+1] || (unlocked(chapter.id+1)?chapters[chapter.id%chapters.length].exercises[0]:exercise);
   const percent=Math.round(done.size/total*100);
+  if(language==='sql') return <SQLLearningPath theme={theme} onThemeChange={()=>setTheme(t=>t==='dark'?'light':'dark')} onLanguageChange={setLanguage}/>;
   return <div className="app-shell">
     <aside className="sidebar"><a className="brand" href="#"><span className="brand-mark"><Code2 size={20}/></span><span>javascript<span className="brand-soft">academy</span></span></a>
       <div className="side-label">LERNPFAD</div><nav>{chapters.map(c=><button key={c.id} className={'chapter '+(chapter.id===c.id?'active':done.has(c.exercises[9].id)?'completed':unlocked(c.id)?'available':'locked')} aria-label={`Kapitel ${String(c.id).padStart(2,'0')}: ${c.title} — ${chapter.id===c.id?'aktuell':done.has(c.exercises[9].id)?'abgeschlossen':unlocked(c.id)?'freigeschaltet':'gesperrt'}`} title={c.title} disabled={!unlocked(c.id)} onClick={()=>setCurrent(c.exercises[0].id)}><span className="chapter-icon">{c.icon}</span><span className="chapter-name">{String(c.id).padStart(2,'0')}　{c.title}</span>{chapter.id===c.id?<ChevronRight size={16}/>:done.has(c.exercises[9].id)?<Check size={15} aria-label="Kapitel abgeschlossen"/>:null}</button>)}</nav>
       <div className="sidebar-bottom"><div className="streak"><span>✿</span><div><b>Dein Lernplatz</b><small>In deinem Tempo.</small></div></div><div className="profile"><div className="avatar">K</div><div><b>JavaScript Learner</b><small>Level {Math.floor(progress.xp/100)+1}</small></div><ChevronDown size={16}/></div></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="crumb">Dein Lernbereich <ChevronRight size={14}/><b>{chapter.title}</b></div><div className="stats"><span className="xp"><Sparkles size={16}/> {progress.xp} XP</span><button type="button" className="theme-toggle" aria-label={theme==='dark'?'Light Mode aktivieren':'Dark Mode aktivieren'} title={theme==='dark'?'Light Mode aktivieren':'Dark Mode aktivieren'} onClick={()=>setTheme(t=>t==='dark'?'light':'dark')}>{theme==='dark'?<Sun size={17} aria-hidden="true"/>:<Moon size={17} aria-hidden="true"/>}</button><div className="avatar small">K</div></div></header>
+      <header className="topbar"><div className="crumb">Dein Lernbereich <ChevronRight size={14}/><b>{chapter.title}</b></div><div className="stats"><div className="language-toggle" role="group" aria-label="Lernsprache"><button type="button" aria-pressed="true">JavaScript</button><button type="button" onClick={()=>setLanguage('sql')}>Oracle SQL</button></div><span className="xp"><Sparkles size={16}/> {progress.xp} XP</span><button type="button" className="theme-toggle theme-toggle-main" aria-label={theme==='dark'?'Light Mode aktivieren':'Dark Mode aktivieren'} title={theme==='dark'?'Light Mode aktivieren':'Dark Mode aktivieren'} onClick={()=>setTheme(t=>t==='dark'?'light':'dark')}>{theme==='dark'?<Sun size={17} aria-hidden="true"/>:<Moon size={17} aria-hidden="true"/>}</button><div className="avatar small">K</div></div></header>
       <div className="content">
         <section className="welcome"><div><div className="eyebrow">MONTAG, 12. OKTOBER 2026 <span>✳</span></div><h1>Hallo, Katja <span>👋</span></h1><p>Ein kleiner Schritt heute bringt dich deinem Ziel näher.</p></div><div className="welcome-illustration"><span className="sun">☼</span><span className="plant">♧</span></div></section>
         <section className="overview"><div className="overview-head"><div><h2>Dein Lernpfad</h2><p>Du bist auf einem guten Weg. Mach weiter so!</p></div><div className="progress-ring" style={{'--progress':percent*3.6+'deg'}}><div><b>{percent}%</b><small>GESAMT</small></div></div></div><div className="progress-line"><span style={{width:percent+'%'}}/></div><div className="overview-metrics"><div><span className="metric-icon rose"><Check size={17}/></span><b>{done.size}<small>Übungen erledigt</small></b></div><div><span className="metric-icon sage"><Trophy size={17}/></span><b>{progress.xp}<small>Erfahrungspunkte</small></b></div><div><span className="metric-icon lilac"><GraduationCap size={18}/></span><b>Level {Math.floor(progress.xp/100)+1}<small>JavaScript Starter</small></b></div></div></section>
@@ -212,7 +248,7 @@ function App(){
           <div className="editor-panel"><div className="editor-head"><div><Code2 size={16}/><b>Dein Code</b><span>JavaScript</span></div><button className="reset" onClick={()=>{setCode(exercise.starter);setResult(null);setPreviewDocument('');previewRunRef.current=null;if(previewTimerRef.current){clearTimeout(previewTimerRef.current);previewTimerRef.current=null;}}}><RotateCcw size={14}/> Zurücksetzen</button></div><div className="code-area"><CodeMirror aria-label="JavaScript-Code bearbeiten" value={code} height="clamp(230px, 31vh, 400px)" theme={theme==='dark'?oneDark:'light'} extensions={[javascript()]} onChange={setCode} basicSetup={{lineNumbers:true,foldGutter:true,highlightActiveLine:true,indentOnInput:true}} /></div><div className="editor-footer"><span><span className="dot"/> Änderungen bleiben in diesem Browser</span><button className="run-button" onClick={run}><Play size={15} fill="currentColor"/> Code ausführen</button></div>
             <div className="output"><div className="output-head"><span><Terminal size={15}/> AUSGABE</span>{result&&<span className={'status '+result.status}>{result.status==='success'?'✓ Richtig':result.status==='running'?'Läuft …':result.status==='error'?'Fehler':'Noch nicht ganz'}</span>}</div><div className="output-body">{!result?<span className="muted">Starte deinen Code, um das Ergebnis zu sehen.</span>:result.status==='running'?<span className="muted">Code wird ausgeführt …</span>:<><pre>{result.error||result.actual||'(Keine Ausgabe)'}</pre>{result.status!=='error'&&<small>{result.status==='success'?'Prima! Deine Ausgabe stimmt.':`Erwartet: ${result.expected}`}</small>}</>}</div></div>
           </div>
-          {exercise.isDom&&<div className="preview-panel"><div className="editor-head"><div><Code2 size={16}/><b>Live-Vorschau</b><span>isoliertes HTML</span></div></div><iframe ref={previewRef} className="dom-preview" title="Interaktive DOM-Vorschau" sandbox="allow-scripts" srcDoc={previewDocument||'<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'"><button id="action">Klick mich</button><button id="reset">Zurücksetzen</button><div id="output">Hier erscheint die Änderung</div><ul id="list"></ul>'}/><p className="preview-note">Führe deinen Code aus und klicke anschließend die Elemente in dieser Vorschau.</p></div>}
+          {exercise.isDom&&<div className="preview-panel"><div className="editor-head"><div><Code2 size={16}/><b>Live-Vorschau</b><span>isoliertes HTML</span></div><button className="reset" onClick={resetPreview}><RotateCcw size={14}/> Vorschau zurücksetzen</button></div><iframe ref={previewRef} className="dom-preview" title="Interaktive DOM-Vorschau" sandbox="allow-scripts" srcDoc={previewDocument||makeDocument('',`idle-${exercise.id}`,'',theme,{starterHtml:exercise.starterHtml})}/><p className="preview-note">Führe den Code aus und klicke danach selbst auf die Elemente. Zurücksetzen behält deinen Code.</p></div>}
         </section>
         <section className="lesson-nav"><button onClick={()=>{const n=Number(current.split('-')[1]);if(n>1)setCurrent(`c${chapter.id}-${n-1}`)}} disabled={current.endsWith('-1')}>← Vorherige Übung</button><span>{done.size} von {total} Übungen abgeschlossen</span><button className="next-button" onClick={()=>setCurrent(next.id)}>Nächste Übung <ChevronRight size={15}/></button></section>
         <section className="chapters"><div className="section-title"><div><span className="section-kicker">DAS CURRICULUM</span><h2>Kapitel entdecken</h2></div><button className="text-button" onClick={()=>setCurrent('c1-1')}>Von vorn beginnen <RotateCcw size={14}/></button></div><div className="chapter-grid">{chapters.map(c=><button key={c.id} className={'chapter-card '+(!unlocked(c.id)?'locked':'')} title={!unlocked(c.id)?'Schließe das vorherige Kapitel ab, um dieses Kapitel freizuschalten.':'Kapitel wiederholen'} onClick={()=>unlocked(c.id)&&setCurrent(c.exercises[0].id)}><span className="card-icon">{c.icon}</span><small>KAPITEL {String(c.id).padStart(2,'0')} {!unlocked(c.id)&&'· GESPERRT'}</small><b>{c.title}</b><span className="card-progress">{c.exercises.filter(e=>done.has(e.id)).length} / 10 Übungen {unlocked(c.id)?<ChevronRight size={14}/>:<span aria-hidden="true">🔒</span>}</span></button>)}</div></section>
@@ -222,3 +258,5 @@ function App(){
   </div>
 }
 createRoot(document.getElementById('root')).render(<App/>);
+
+
