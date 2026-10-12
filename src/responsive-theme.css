@@ -1,0 +1,145 @@
+/* Viewport layout: keep navigation fixed and scroll only the content that overflows. */
+html, body, #root { width: 100%; min-width: 320px; min-height: 0; height: 100%; }
+body { overflow: hidden; }
+.app-shell { width: 100%; height: 100dvh; min-height: 0; overflow: hidden; }
+.sidebar { height: 100%; min-height: 0; overflow: hidden; }
+.sidebar nav { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.main { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.topbar { flex: 0 0 62px; }
+.content { width: 100%; max-width: none; flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.workspace, .task-panel, .editor-panel, .preview-panel { min-width: 0; }
+.task-panel { align-self: stretch; }
+.code-area { min-height: 140px; height: clamp(160px, 24vh, 300px); }
+.code-area .cm-editor { min-height: 100%; }
+.output-body { max-height: min(24vh, 220px); overflow: auto; }
+.preview-panel { min-width: 0; }
+.theme-toggle { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--surface); cursor: pointer; }
+.theme-toggle:hover { background: var(--hover-surface); }
+.theme-toggle:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* Colors are centralized here and consumed by the existing surface classes. */
+:root {
+  color-scheme: light;
+  --page: #f8f7f2; --surface: #fffefa; --editor-surface: #fbfaf6; --line: #e9ebe5;
+  --ink: #293632; --muted: #82908a; --accent: #506d5b; --accent-strong: #395944;
+  --welcome: #eff1e9; --hover-surface: #f7f7f2; --focus: #61806d;
+}
+html { color: var(--ink); background: var(--page); }
+body, .app-shell, .main, .content { background: var(--page); color: var(--ink); }
+.sidebar, .topbar, .overview, .task-panel, .editor-panel, .chapter-card, .preview-panel { background-color: var(--surface); }
+.welcome { background-color: var(--welcome); }
+.code-area, .code-area .cm-editor, .code-area .cm-gutters, .output-body { background-color: var(--editor-surface); }
+.theme-toggle { --surface: #fffefa; --hover-surface: #f7f7f2; --line: #e9ebe5; --ink: #293632; --focus: #61806d; }
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #171b19; --surface: #202622; --editor-surface: #151917; --line: #343d37;
+  --ink: #e7ece8; --muted: #a5b0a8; --accent: #91b69a; --accent-strong: #a4c9ac;
+  --welcome: #252e28; --hover-surface: #2a332d; --focus: #a4c9ac;
+}
+:root[data-theme="dark"] .sidebar,
+:root[data-theme="dark"] .topbar,
+:root[data-theme="dark"] .overview,
+:root[data-theme="dark"] .task-panel,
+:root[data-theme="dark"] .editor-panel,
+:root[data-theme="dark"] .chapter-card,
+:root[data-theme="dark"] .preview-panel { background-color: var(--surface); color: var(--ink); border-color: var(--line); }
+:root[data-theme="dark"] .welcome,
+:root[data-theme="dark"] .goal,
+:root[data-theme="dark"] .hint-card,
+:root[data-theme="dark"] .solution { background-color: #252e28; color: var(--ink); }
+:root[data-theme="dark"] .code-area,
+:root[data-theme="dark"] .code-area .cm-editor,
+:root[data-theme="dark"] .code-area .cm-gutters,
+:root[data-theme="dark"] .output-body,
+:root[data-theme="dark"] .hint-card pre { background-color: var(--editor-surface); color: var(--ink); }
+:root[data-theme="dark"] .cm-activeLine,
+:root[data-theme="dark"] .cm-activeLineGutter { background: #222a25; }
+:root[data-theme="dark"] .chapter,
+:root[data-theme="dark"] .crumb,
+:root[data-theme="dark"] .task-panel > p,
+:root[data-theme="dark"] .welcome p,
+:root[data-theme="dark"] .overview-head p,
+:root[data-theme="dark"] .goal p,
+:root[data-theme="dark"] .profile small,
+:root[data-theme="dark"] .streak small,
+:root[data-theme="dark"] .preview-note { color: var(--muted); }
+:root[data-theme="dark"] .chapter:hover,
+:root[data-theme="dark"] .theme-toggle:hover { background: var(--hover-surface); }
+:root[data-theme="dark"] .chapter.active { background: #2b382f; color: #cde2d1; }
+:root[data-theme="dark"] .chapter-icon,
+:root[data-theme="dark"] .editor-head > div,
+:root[data-theme="dark"] .hint-button,
+:root[data-theme="dark"] .solution-button,
+:root[data-theme="dark"] .text-button,
+:root[data-theme="dark"] .lesson-nav button { color: #b6cabe; }
+:root[data-theme="dark"] .task-icon,
+:root[data-theme="dark"] .card-icon,
+:root[data-theme="dark"] .difficulty,
+:root[data-theme="dark"] .editor-head > div span,
+:root[data-theme="dark"] .goal code,
+:root[data-theme="dark"] .solution code { background: #2b352e; color: #c9d9cd; }
+:root[data-theme="dark"] .streak { background: #3b3428; color: #d9bd83; }
+:root[data-theme="dark"] .rose { background: #3a2c2c; color: #e09a94; }
+:root[data-theme="dark"] .sage { background: #2b382f; color: #a4c9ac; }
+:root[data-theme="dark"] .lilac { background: #342e3c; color: #c4b2dc; }
+:root[data-theme="dark"] .progress-ring { background: conic-gradient(#91b69a var(--progress), #343d37 0); }
+:root[data-theme="dark"] .progress-ring > div { background: #202622; }
+:root[data-theme="dark"] .progress-line { background: #343d37; }
+:root[data-theme="dark"] .welcome-illustration { background: #303b33; }
+:root[data-theme="dark"] .avatar { background: #493b36; color: #e2b5a7; }
+:root[data-theme="dark"] .editor-head,
+:root[data-theme="dark"] .editor-footer,
+:root[data-theme="dark"] .output,
+:root[data-theme="dark"] .profile,
+:root[data-theme="dark"] .lesson-nav { border-color: var(--line); }
+:root[data-theme="dark"] .run-button,
+:root[data-theme="dark"] .lesson-nav .next-button { background: #668c70; color: #101612; }
+:root[data-theme="dark"] .run-button:hover,
+:root[data-theme="dark"] .next-button:hover { background: #82a98b; }
+:root[data-theme="dark"] .status.success { color: #8fc99a; }
+:root[data-theme="dark"] .status.error,
+:root[data-theme="dark"] .status.incorrect { color: #e09a94; }
+:root[data-theme="dark"] .theme-toggle { --surface: #202622; --hover-surface: #2a332d; --line: #343d37; --ink: #e7ece8; --focus: #a4c9ac; }
+:root[data-theme="dark"] .app-shell *:not(svg):not(.cm-content):not(.cm-content *) { color: inherit; }
+:root[data-theme="dark"] .app-shell { color: var(--ink); }
+:root[data-theme="dark"] .stats .xp,
+:root[data-theme="dark"] .reward,
+:root[data-theme="dark"] .goal > span,
+:root[data-theme="dark"] .status.success { color: #d9bd83; }
+:root[data-theme="dark"] .status.success { color: #8fc99a; }
+:root[data-theme="dark"] .status.error,
+:root[data-theme="dark"] .status.incorrect { color: #e09a94; }
+
+@media (min-width: 1500px) {
+  .content { padding-left: clamp(38px, 3vw, 72px); padding-right: clamp(38px, 3vw, 72px); }
+  .workspace { grid-template-columns: minmax(320px, .82fr) minmax(520px, 1.55fr); gap: 18px; }
+}
+@media (max-height: 760px) and (min-width: 721px) {
+  .sidebar { padding-top: 14px; padding-bottom: 10px; }
+  .brand { padding-bottom: 15px; }
+  .side-label { padding-bottom: 6px; }
+  .sidebar nav { gap: 1px; }
+  .chapter { padding-top: 7px; padding-bottom: 7px; }
+  .streak { padding: 8px; margin-bottom: 8px; }
+  .profile { padding-top: 9px; }
+}
+@media (max-width: 1000px) {
+  .workspace { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
+}
+@media (max-width: 720px) {
+  .sidebar { width: 57px; }
+  .main { width: calc(100% - 57px); }
+  .content { padding: 15px 12px; }
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .preview-panel { grid-column: 1; }
+  .code-area { height: clamp(170px, 34vh, 280px); }
+}
+@media (max-width: 420px) {
+  .topbar { min-width: 0; padding: 0 10px; }
+  .crumb { max-width: calc(100% - 90px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .stats { gap: 7px; }
+  .content { padding: 12px 9px 24px; }
+  .task-panel { padding: 13px; }
+  .overview-metrics { flex-wrap: wrap; }
+}
