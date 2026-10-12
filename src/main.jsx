@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BookOpen, Check, ChevronDown, ChevronRight, Code2, Flame, GraduationCap, Lightbulb, Play, RotateCcw, Sparkles, Terminal, Trophy } from 'lucide-react';
+import { BookOpen, Check, ChevronDown, ChevronRight, Code2, GraduationCap, Lightbulb, Moon, Play, RotateCcw, Sparkles, Sun, Terminal, Trophy } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
+import { oneDark } from '@codemirror/theme-one-dark';
 import { advancedExercises } from './data/advancedExercises.js';
+import { beginnerGuides, beginnerLessonText } from './data/beginnerExercises.js';
 import { chapterUnlocked, completeExercise, loadProgress, saveProgress } from './core/progress.js';
 import { gradeRun } from './core/grading.js';
+import { readTheme, saveTheme } from './core/theme.js';
 import './styles.css';
+import './responsive-theme.css';
 
 const topics = [
   { title:'JavaScript-Grundlagen', icon:'✳', ideas:['console.log()', 'Kommentare', 'Anweisungen', 'Strings ausgeben', 'Mehrere Ausgaben', 'Text kombinieren', 'Ausgaben lesen', 'Fehler finden', 'Code ordnen', 'Mini-Ausgabe'] },
@@ -85,12 +89,15 @@ const samples = [
   ]
 ];
 
-const chapters = topics.map((topic, ci) => ({...topic, id:ci+1, exercises:topic.ideas.map((title, ei)=>{
-  const [starter, expected] = samples[ci][ei];
+const chapters = topics.map((topic, ci) => ({...topic, id:ci+1, lesson:beginnerLessonText[ci+1], exercises:topic.ideas.map((title, ei)=>{
+  const [solution, expected] = samples[ci][ei];
+  const guide=beginnerGuides[ci+1]?.[ei];
+  if(!guide) return { id:`c${ci+1}-${ei+1}`, title, starter:solution, expected, xp:10+(ei>6?5:0), difficulty:ei<3?'Leicht':ei<7?'Mittel':'Knifflig', description:`Setze ${title} um und prüfe die Ausgabe im Ergebnisbereich.`, hint:[], solution };
+  const [description,nudge,concept,gap,replacement,solutionExplanation]=guide;
+  if(!solution.includes(gap)) throw new Error(`Lesson scaffold gap not found for c${ci+1}-${ei+1}: ${gap}`);
+  const starter=solution.replace(gap,replacement);
   return { id:`c${ci+1}-${ei+1}`, title, starter, expected, xp:10+(ei>6?5:0), difficulty:ei<3?'Leicht':ei<7?'Mittel':'Knifflig',
-    description:`Setze ${title} um und prüfe die Ausgabe im Ergebnisbereich.`,
-    hint:[`Achte darauf, welche JavaScript-Idee hier im Mittelpunkt steht: ${title}.`, `Führe den Code Schritt für Schritt aus und nutze console.log(), um Zwischenwerte sichtbar zu machen.`, `Vergleiche dein Ergebnis mit dem Beispiel. Ein möglicher Ansatz steht im Startercode.`],
-    solution:starter
+    description, hint:[nudge,concept,starter], solution, solutionExplanation
   };
 })})).map((chapter) => {
   const curated = advancedExercises[chapter.id];
@@ -103,9 +110,10 @@ const chapters = topics.map((topic, ci) => ({...topic, id:ci+1, exercises:topic.
 
 function readProgress(){ return loadProgress(localStorage, chapters.reduce((n,c)=>n+c.exercises.length,0)); }
 function escapeScript(code){ return code.replace(/<\/script/gi, '<\\/script'); }
-function makeDocument(code, runId, checkCode = '') {
+function makeDocument(code, runId, checkCode = '', theme = 'light') {
   const safeCode=escapeScript(code), safeChecks=escapeScript(checkCode);
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"><style>body{font:14px system-ui;color:#293632;padding:16px;background:#fffefa}button{padding:8px 12px;border:0;border-radius:7px;background:#506d5b;color:white;margin:0 6px 8px 0}#output{padding:8px;background:#f4f5ef;border-radius:6px;min-height:20px}ul{padding-left:22px}</style></head><body><button id="action" type="button">Klick mich</button><button id="reset" type="button">Zurücksetzen</button><div id="output">0</div><ul id="list"></ul><script>
+  const colors=theme==='dark'?{page:'#171B19',surface:'#202622',text:'#E7ECE8',accent:'#91B69A',accentText:'#171B19',line:'#343D37'}:{page:'#f8f7f2',surface:'#fffefa',text:'#293632',accent:'#506d5b',accentText:'#ffffff',line:'#e9ebe5'};
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"><style>body{font:14px system-ui;color:${colors.text};padding:16px;background:${colors.page}}button{padding:8px 12px;border:1px solid ${colors.line};border-radius:7px;background:${colors.accent};color:${colors.accentText};margin:0 6px 8px 0}#output{padding:8px;background:${colors.surface};border:1px solid ${colors.line};border-radius:6px;min-height:20px}ul{padding-left:22px}</style></head><body><button id="action" type="button">Klick mich</button><button id="reset" type="button">Zurücksetzen</button><div id="output">0</div><ul id="list"></ul><script>
     const runId=${JSON.stringify(runId)}, send=(type,value)=>parent.postMessage({source:'academy-runner',runId,type,value},'*');
     const logs=[], checks=[];
     console.log=(...args)=>{const line=args.map(value=>{try{return typeof value==='object'?JSON.stringify(value):String(value)}catch{return String(value)}}).join(' ');logs.push(line);send('log',line)};
@@ -117,6 +125,7 @@ function makeDocument(code, runId, checkCode = '') {
   <\/script></body></html>`;
 }
 function App(){
+  const [theme,setTheme]=useState(()=>readTheme());
   const [progress,setProgress]=useState(readProgress);
   const [current,setCurrent]=useState(progress.last||'c1-1');
   const [code,setCode]=useState('');
@@ -134,6 +143,7 @@ function App(){
   const done=new Set(progress.done);
   useEffect(()=>{setCode(exercise.starter);setResult(null);setHint(0);setShowSolution(false);setPreviewDocument('');previewRunRef.current=null;if(previewTimerRef.current){clearTimeout(previewTimerRef.current);previewTimerRef.current=null;}setProgress(p=>({...p,last:exercise.id}));},[exercise]);
   useEffect(()=>{saveProgress(localStorage,progress);},[progress]);
+  useEffect(()=>{document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;saveTheme(theme);},[theme]);
   useEffect(()=>{
     const onPreviewMessage=(event)=>{
       if(event.source!==previewRef.current?.contentWindow||event.data?.source!=='academy-runner'||event.data?.runId!==previewRunRef.current)return;
@@ -151,7 +161,7 @@ function App(){
     frame.setAttribute('sandbox','allow-scripts');
     frame.title='Isolierte Verhaltensprüfung';
     frame.style.cssText='position:fixed;width:1px;height:1px;left:-10000px;border:0';
-    frame.srcdoc=makeDocument(code,runId,exercise.check||'');
+    frame.srcdoc=makeDocument(code,runId,exercise.check||'',theme);
     document.body.append(frame);
     let logs=[], error=null, finished=false;
     const cleanup=()=>{window.removeEventListener('message',onMessage);frame.remove();};
@@ -180,7 +190,7 @@ function App(){
           setResult({status:'error',logs:[],error:'Die Vorschau wurde nach 1,5 s wegen eines möglichen Endloslaufs zurückgesetzt.'});
         }
       },1500);
-      setPreviewDocument(makeDocument(code,previewId,''));
+      setPreviewDocument(makeDocument(code,previewId,'',theme));
     }
   }
   const exerciseIndex=Number(current.split('-')[1])-1;
@@ -192,14 +202,14 @@ function App(){
       <div className="sidebar-bottom"><div className="streak"><span>✿</span><div><b>Dein Lernplatz</b><small>In deinem Tempo.</small></div></div><div className="profile"><div className="avatar">K</div><div><b>JavaScript Learner</b><small>Level {Math.floor(progress.xp/100)+1}</small></div><ChevronDown size={16}/></div></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="crumb">Dein Lernbereich <ChevronRight size={14}/><b>{chapter.title}</b></div><div className="stats"><span className="xp"><Sparkles size={16}/> {progress.xp} XP</span><div className="avatar small">K</div></div></header>
+      <header className="topbar"><div className="crumb">Dein Lernbereich <ChevronRight size={14}/><b>{chapter.title}</b></div><div className="stats"><span className="xp"><Sparkles size={16}/> {progress.xp} XP</span><button type="button" className="theme-toggle" aria-label={theme==='dark'?'Light Mode aktivieren':'Dark Mode aktivieren'} title={theme==='dark'?'Light Mode aktivieren':'Dark Mode aktivieren'} onClick={()=>setTheme(t=>t==='dark'?'light':'dark')}>{theme==='dark'?<Sun size={17} aria-hidden="true"/>:<Moon size={17} aria-hidden="true"/>}</button><div className="avatar small">K</div></div></header>
       <div className="content">
         <section className="welcome"><div><div className="eyebrow">MONTAG, 12. OKTOBER 2026 <span>✳</span></div><h1>Hallo, Katja <span>👋</span></h1><p>Ein kleiner Schritt heute bringt dich deinem Ziel näher.</p></div><div className="welcome-illustration"><span className="sun">☼</span><span className="plant">♧</span></div></section>
         <section className="overview"><div className="overview-head"><div><h2>Dein Lernpfad</h2><p>Du bist auf einem guten Weg. Mach weiter so!</p></div><div className="progress-ring" style={{'--progress':percent*3.6+'deg'}}><div><b>{percent}%</b><small>GESAMT</small></div></div></div><div className="progress-line"><span style={{width:percent+'%'}}/></div><div className="overview-metrics"><div><span className="metric-icon rose"><Check size={17}/></span><b>{done.size}<small>Übungen erledigt</small></b></div><div><span className="metric-icon sage"><Trophy size={17}/></span><b>{progress.xp}<small>Erfahrungspunkte</small></b></div><div><span className="metric-icon lilac"><GraduationCap size={18}/></span><b>Level {Math.floor(progress.xp/100)+1}<small>JavaScript Starter</small></b></div></div></section>
         <section className="lesson-heading"><div><span className="section-kicker">WEITERLERNEN</span><h2>Deine nächste Lektion</h2></div><button className="text-button" onClick={()=>setCurrent(progress.last||'c1-1')}>Letzten Stand öffnen <ChevronRight size={16}/></button></section>
         <section className="workspace">
-          <div className="task-panel"><div className="task-top"><span className="task-icon">{chapter.icon}</span><span className="difficulty">{exercise.difficulty}</span><span className="exercise-number">ÜBUNG {current.split('-')[1]} / 10</span></div><h2>{exercise.title}</h2><p>{exercise.description}</p><div className="goal"><span>✳</span><div><b>Dein Lernziel</b><p>{chapter.lesson||`Nutze ${chapter.title}, um die Aufgabe zu lösen und die Ausgabe zu überprüfen.`}</p></div></div><div className="task-actions"><button className="hint-button" onClick={()=>setHint(n=>Math.min(n+1,3))}><Lightbulb size={16}/> Tipp anzeigen <span>{hint}/3</span></button>{hint>0&&<div className="hint-card"><b>{['Denkanstoß','Konzept','Codegerüst'][hint-1]}</b><p>{exercise.hint[hint-1]}</p></div>}<button className="solution-button" onClick={()=>setShowSolution(v=>!v)}>{showSolution?'Musterlösung verbergen':'Musterlösung anzeigen'}</button>{showSolution&&<div className="solution"><b>Musterlösung</b><pre>{exercise.solution}</pre><p>{exercise.solutionExplanation||'Führe den Code aus und vergleiche die Ausgabe mit dem erwarteten Ergebnis.'}</p></div>}<div className="reward"><Sparkles size={15}/> +{exercise.xp} XP bei Erfolg</div></div></div>
-          <div className="editor-panel"><div className="editor-head"><div><Code2 size={16}/><b>Dein Code</b><span>JavaScript</span></div><button className="reset" onClick={()=>{setCode(exercise.starter);setResult(null);setPreviewDocument('');previewRunRef.current=null;if(previewTimerRef.current){clearTimeout(previewTimerRef.current);previewTimerRef.current=null;}}}><RotateCcw size={14}/> Zurücksetzen</button></div><div className="code-area"><CodeMirror aria-label="JavaScript-Code bearbeiten" value={code} height="204px" extensions={[javascript()]} onChange={setCode} basicSetup={{lineNumbers:true,foldGutter:true,highlightActiveLine:true,indentOnInput:true}} /></div><div className="editor-footer"><span><span className="dot"/> Änderungen bleiben in diesem Browser</span><button className="run-button" onClick={run}><Play size={15} fill="currentColor"/> Code ausführen</button></div>
+          <div className="task-panel"><div className="task-top"><span className="task-icon">{chapter.icon}</span><span className="difficulty">{exercise.difficulty}</span><span className="exercise-number">ÜBUNG {current.split('-')[1]} / 10</span></div><h2>{exercise.title}</h2><p>{exercise.description}</p><div className="goal"><span>✳</span><div><b>Dein Lernziel</b><p>{chapter.lesson||`Nutze ${chapter.title}, um die Aufgabe zu lösen und die Ausgabe zu überprüfen.`}</p></div></div><div className="task-actions"><button className="hint-button" onClick={()=>setHint(n=>Math.min(n+1,3))}><Lightbulb size={16}/> Tipp anzeigen <span>{hint}/3</span></button>{hint>0&&<div className="hint-card"><b>{['Denkanstoß','Konzept','Codegerüst'][hint-1]}</b>{hint===3?<pre>{exercise.hint[2]}</pre>:<p>{exercise.hint[hint-1]}</p>}</div>}<button className="solution-button" disabled={!result||result.status==='running'} onClick={()=>setShowSolution(v=>!v)}>{showSolution?'Musterlösung verbergen':'Musterlösung anzeigen'}</button>{showSolution&&<div className="solution"><b>Musterlösung</b><pre>{exercise.solution}</pre><p>{exercise.solutionExplanation||'Führe den Code aus und vergleiche die Ausgabe mit dem erwarteten Ergebnis.'}</p></div>}<div className="reward"><Sparkles size={15}/> +{exercise.xp} XP bei Erfolg</div></div></div>
+          <div className="editor-panel"><div className="editor-head"><div><Code2 size={16}/><b>Dein Code</b><span>JavaScript</span></div><button className="reset" onClick={()=>{setCode(exercise.starter);setResult(null);setPreviewDocument('');previewRunRef.current=null;if(previewTimerRef.current){clearTimeout(previewTimerRef.current);previewTimerRef.current=null;}}}><RotateCcw size={14}/> Zurücksetzen</button></div><div className="code-area"><CodeMirror aria-label="JavaScript-Code bearbeiten" value={code} height="204px" theme={theme==='dark'?oneDark:'light'} extensions={[javascript()]} onChange={setCode} basicSetup={{lineNumbers:true,foldGutter:true,highlightActiveLine:true,indentOnInput:true}} /></div><div className="editor-footer"><span><span className="dot"/> Änderungen bleiben in diesem Browser</span><button className="run-button" onClick={run}><Play size={15} fill="currentColor"/> Code ausführen</button></div>
             <div className="output"><div className="output-head"><span><Terminal size={15}/> AUSGABE</span>{result&&<span className={'status '+result.status}>{result.status==='success'?'✓ Richtig':result.status==='running'?'Läuft …':result.status==='error'?'Fehler':'Noch nicht ganz'}</span>}</div><div className="output-body">{!result?<span className="muted">Starte deinen Code, um das Ergebnis zu sehen.</span>:result.status==='running'?<span className="muted">Code wird ausgeführt …</span>:<><pre>{result.error||result.actual||'(Keine Ausgabe)'}</pre>{result.status!=='error'&&<small>{result.status==='success'?'Prima! Deine Ausgabe stimmt.':`Erwartet: ${result.expected}`}</small>}</>}</div></div>
           </div>
           {exercise.isDom&&<div className="preview-panel"><div className="editor-head"><div><Code2 size={16}/><b>Live-Vorschau</b><span>isoliertes HTML</span></div></div><iframe ref={previewRef} className="dom-preview" title="Interaktive DOM-Vorschau" sandbox="allow-scripts" srcDoc={previewDocument||'<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'"><button id="action">Klick mich</button><button id="reset">Zurücksetzen</button><div id="output">Hier erscheint die Änderung</div><ul id="list"></ul>'}/><p className="preview-note">Führe deinen Code aus und klicke anschließend die Elemente in dieser Vorschau.</p></div>}
@@ -212,4 +222,3 @@ function App(){
   </div>
 }
 createRoot(document.getElementById('root')).render(<App/>);
-
