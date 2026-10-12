@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0A0A0B" />
+    <meta name="description" content="Lerne JavaScript Schritt für Schritt mit interaktiven Übungen." />
+    <script>
+      (() => {
+        try {
+          const saved = localStorage.getItem('javascript-academy-theme');
+          const theme = saved === 'light' || saved === 'dark' ? saved : 'dark';
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+          document.documentElement.style.backgroundColor = theme === 'dark' ? '#0A0A0B' : '';
+          document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#0A0A0B' : '#f8f6f0';
+        } catch {
+          document.documentElement.dataset.theme = 'dark';
+          document.documentElement.style.colorScheme = 'dark';
+          document.documentElement.style.backgroundColor = '#0A0A0B';
+        }
+      })();
+    </script>
+    <title>JavaScript Academy</title>
+  </head>
+  <body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body>
+</html>
+
+
