@@ -36,7 +36,18 @@ for (const [chapterId, exercises] of Object.entries(advancedExercises)) {
         __assert(label, passed, actual = passed) { checks.push({ label, passed: Boolean(passed), actual }); },
       };
       try {
-        vm.runInNewContext(`${exercise.solution}\n${exercise.check}`, sandbox, { timeout: 100 });
+        vm.runInNewContext(`${exercise.solution}\n${exercise.check || ''}`, sandbox, { timeout: 100 });
+        if (exercise.manualInteraction) {
+          const elements = sandbox.document;
+          for (const step of exercise.manualInteraction.steps) {
+            elements.querySelector(step.target).click();
+            for (const check of step.checks) {
+              const target = elements.querySelector(check.selector);
+              const actual = check.type === 'childCount' ? target.children.length : target.textContent;
+              checks.push({ label: check.selector, passed: String(actual) === String(check.equals), actual });
+            }
+          }
+        }
       } catch (error) {
         assert.fail(`c${chapterId}-${index + 1} (${exercise.title}) threw: ${error.message}`);
       }
@@ -47,5 +58,7 @@ for (const [chapterId, exercises] of Object.entries(advancedExercises)) {
     }
   });
 }
+
+
 
 
