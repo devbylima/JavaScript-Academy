@@ -237,6 +237,10 @@ button:disabled { cursor: not-allowed; }
   .workspace { grid-template-columns: minmax(250px, .8fr) minmax(0, 1.2fr); gap: 14px; }
   .overview-metrics { gap: 18px; }
 }
+@media (min-width: 721px) and (max-width: 900px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .preview-panel { grid-column: 1; }
+}
 @media (max-width: 720px) {
   .sidebar { width: 57px; padding: 18px 7px; }
   .brand { padding-bottom: 20px; }
@@ -250,6 +254,15 @@ button:disabled { cursor: not-allowed; }
   .task-panel { min-height: auto; }
   .code-area { height: clamp(240px, 35vh, 340px); }
   .chapter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 421px) and (max-width: 720px) {
+  .sidebar { width: 190px; }
+  .main { width: calc(100% - 190px); }
+  .brand { padding-left: 4px; padding-right: 4px; }
+  .brand > span:last-child, .side-label, .chapter-name { display: initial; }
+  .sidebar-bottom { display: none; }
+  .chapter { justify-content: flex-start; padding-inline: 7px; }
+  .chapter > svg { display: block; }
 }
 @media (max-width: 420px) {
   :root { --type-body: 16px; --type-section: 20px; --type-exercise: 20px; }
