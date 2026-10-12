@@ -10,11 +10,11 @@ function memoryStorage(initial = {}) {
   };
 }
 
-test('theme preference restores valid modes and defaults invalid or missing values to light', () => {
+test('theme preference restores valid modes and defaults invalid or missing values to dark', () => {
   assert.equal(readTheme(memoryStorage({ [THEME_KEY]: 'dark' })), 'dark');
   assert.equal(readTheme(memoryStorage({ [THEME_KEY]: 'light' })), 'light');
-  assert.equal(readTheme(memoryStorage({ [THEME_KEY]: 'system' })), 'light');
-  assert.equal(readTheme(memoryStorage()), 'light');
+  assert.equal(readTheme(memoryStorage({ [THEME_KEY]: 'system' })), 'dark');
+  assert.equal(readTheme(memoryStorage()), 'dark');
 });
 
 test('theme preference is stored under its own key without changing learning data', () => {
@@ -28,6 +28,8 @@ test('theme preference is stored under its own key without changing learning dat
 
 test('theme storage failures fall back without throwing', () => {
   const blocked = { getItem() { throw Error('blocked'); }, setItem() { throw Error('blocked'); } };
-  assert.equal(readTheme(blocked), 'light');
+  assert.equal(readTheme(blocked), 'dark');
   assert.doesNotThrow(() => saveTheme('dark', blocked));
 });
+
+
