@@ -15,6 +15,8 @@ Create a production build with `pnpm build` and run the automated checks with `p
 
 - Ten chapters with ten exercises each. Chapters 7–10 have incomplete starter code, ordered difficulty, concrete three-stage hints, explanatory solutions, and behavior-based checks.
 - CodeMirror provides editable JavaScript with syntax highlighting, line numbers, folding, and active-line highlighting.
+- The Light/Dark preference is stored separately from learner progress. CodeMirror switches to its One Dark theme in Dark Mode, and the document applies the saved theme before the app renders.
+- Responsive layout keeps chapter navigation fixed and scrolls the chapter list only if its contents exceed the available height. The main learning content scrolls independently.
 - Exercises can be repeated. Chapters unlock after finishing the previous chapter; progress and once-only XP are stored in localStorage. “Von vorn beginnen” changes the selected exercise without erasing progress.
 - DOM exercises show a live, sandboxed preview. Hidden behavior checks use a separate iframe that runs the same learner source with appended assertions, so test actions do not replace or consume the visible preview.
 - Automated tests cover output grading, object and method behavior, array mutations, DOM events, exercise model solutions, and progress persistence.
@@ -27,5 +29,4 @@ This reduces access to the parent app but does not make arbitrary JavaScript saf
 
 ## Verification status
 
-The repository's Node test suite is `node --test` and can run without installed app dependencies. The app's Vite production build requires the dependencies from `package.json` to be installed first.
-
+Verified with pnpm 11.25.0 and Node 24.19.0: `pnpm install --frozen-lockfile`, `pnpm build` (Vite 8.3.4), and `pnpm test` (12 passing tests). The production build reports a large JavaScript chunk warning and lucide-react module directive notices. Browser spot checks cover theme switching and persistence, CodeMirror mode, and the responsive viewport sizes documented in the pull request.
