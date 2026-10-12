@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f8f6f0" />
     <meta name="description" content="Lerne JavaScript Schritt für Schritt mit interaktiven Übungen." />
+    <script>
+      (() => {
+        try {
+          const theme = localStorage.getItem('javascript-academy-theme') === 'dark' ? 'dark' : 'light';
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+          if (theme === 'dark') document.documentElement.style.backgroundColor = '#171B19';
+        } catch { document.documentElement.dataset.theme = 'light'; }
+      })();
+    </script>
     <title>JavaScript Academy</title>
   </head>
   <body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body>
