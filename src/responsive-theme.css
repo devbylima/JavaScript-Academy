@@ -33,11 +33,14 @@ body, .app-shell, .main, .content { background: var(--page); color: var(--ink); 
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #171b19; --surface: #202622; --editor-surface: #151917; --line: #343d37;
-  --ink: #e7ece8; --muted: #a5b0a8; --accent: #91b69a; --accent-strong: #a4c9ac;
-  --welcome: #252e28; --hover-surface: #2a332d; --focus: #a4c9ac;
+  --page: #0a0a0b; --surface: #161619; --sidebar-surface: #101012; --elevated: #1d1d21;
+  --editor-surface: #101012; --input-surface: #141417; --line: #2b2b30;
+  --ink: #f5f5f7; --muted: #a1a1aa; --muted-quiet: #71717a;
+  --accent: #a78bfa; --accent-strong: #8b5cf6; --welcome: #161619;
+  --hover-surface: #242429; --active-surface: #29292f; --focus: #a78bfa;
+  --success: #4ade80; --error: #f87171; --warning: #fbbf24; --info: #60a5fa;
 }
-:root[data-theme="dark"] .sidebar,
+:root[data-theme="dark"] .sidebar { background-color: var(--sidebar-surface); }
 :root[data-theme="dark"] .topbar,
 :root[data-theme="dark"] .overview,
 :root[data-theme="dark"] .task-panel,
@@ -47,14 +50,21 @@ body, .app-shell, .main, .content { background: var(--page); color: var(--ink); 
 :root[data-theme="dark"] .welcome,
 :root[data-theme="dark"] .goal,
 :root[data-theme="dark"] .hint-card,
-:root[data-theme="dark"] .solution { background-color: #252e28; color: var(--ink); }
+:root[data-theme="dark"] .solution { background-color: var(--elevated); color: var(--ink); }
 :root[data-theme="dark"] .code-area,
 :root[data-theme="dark"] .code-area .cm-editor,
 :root[data-theme="dark"] .code-area .cm-gutters,
 :root[data-theme="dark"] .output-body,
 :root[data-theme="dark"] .hint-card pre { background-color: var(--editor-surface); color: var(--ink); }
 :root[data-theme="dark"] .cm-activeLine,
-:root[data-theme="dark"] .cm-activeLineGutter { background: #222a25; }
+:root[data-theme="dark"] .cm-activeLineGutter { background: #1d1d21; }
+:root[data-theme="dark"] .code-area .cm-editor,
+:root[data-theme="dark"] .code-area .cm-scroller,
+:root[data-theme="dark"] .code-area .cm-gutters { background: #101012; }
+:root[data-theme="dark"] .code-area .cm-content { color: #f5f5f7; caret-color: #a78bfa; }
+:root[data-theme="dark"] .code-area .cm-cursor { border-left-color: #a78bfa; }
+:root[data-theme="dark"] .code-area .cm-selectionBackground,
+:root[data-theme="dark"] .code-area .cm-content ::selection { background: #51417a !important; }
 :root[data-theme="dark"] .chapter,
 :root[data-theme="dark"] .crumb,
 :root[data-theme="dark"] .task-panel > p,
@@ -67,49 +77,66 @@ body, .app-shell, .main, .content { background: var(--page); color: var(--ink); 
 :root[data-theme="dark"] .chapter:hover,
 :root[data-theme="dark"] .theme-toggle:hover { background: var(--hover-surface); }
 :root[data-theme="dark"] .chapter.active { background: #2b382f; color: #cde2d1; }
+:root[data-theme="dark"] .chapter.active { background: var(--active-surface); color: var(--ink); }
 :root[data-theme="dark"] .chapter-icon,
 :root[data-theme="dark"] .editor-head > div,
 :root[data-theme="dark"] .hint-button,
 :root[data-theme="dark"] .solution-button,
 :root[data-theme="dark"] .text-button,
-:root[data-theme="dark"] .lesson-nav button { color: #b6cabe; }
+:root[data-theme="dark"] .lesson-nav button { color: var(--muted); }
 :root[data-theme="dark"] .task-icon,
 :root[data-theme="dark"] .card-icon,
 :root[data-theme="dark"] .difficulty,
 :root[data-theme="dark"] .editor-head > div span,
 :root[data-theme="dark"] .goal code,
-:root[data-theme="dark"] .solution code { background: #2b352e; color: #c9d9cd; }
-:root[data-theme="dark"] .streak { background: #3b3428; color: #d9bd83; }
-:root[data-theme="dark"] .rose { background: #3a2c2c; color: #e09a94; }
-:root[data-theme="dark"] .sage { background: #2b382f; color: #a4c9ac; }
-:root[data-theme="dark"] .lilac { background: #342e3c; color: #c4b2dc; }
-:root[data-theme="dark"] .progress-ring { background: conic-gradient(#91b69a var(--progress), #343d37 0); }
-:root[data-theme="dark"] .progress-ring > div { background: #202622; }
-:root[data-theme="dark"] .progress-line { background: #343d37; }
-:root[data-theme="dark"] .welcome-illustration { background: #303b33; }
-:root[data-theme="dark"] .avatar { background: #493b36; color: #e2b5a7; }
+:root[data-theme="dark"] .solution code { background: #242429; color: var(--ink); }
+:root[data-theme="dark"] .task-icon,
+:root[data-theme="dark"] .card-icon,
+:root[data-theme="dark"] .difficulty,
+:root[data-theme="dark"] .editor-head > div span,
+:root[data-theme="dark"] .goal code { background: #242429; color: var(--ink); }
+:root[data-theme="dark"] .streak { background: #1d1d21; color: var(--warning); }
+:root[data-theme="dark"] .rose { background: #2b1b1d; color: var(--error); }
+:root[data-theme="dark"] .sage { background: #14251b; color: var(--success); }
+:root[data-theme="dark"] .lilac { background: #211a30; color: var(--accent); }
+:root[data-theme="dark"] .progress-ring { background: conic-gradient(var(--accent) var(--progress), #2b2b30 0); }
+:root[data-theme="dark"] .progress-ring > div { background: var(--surface); }
+:root[data-theme="dark"] .progress-line { background: #2b2b30; }
+:root[data-theme="dark"] .progress-line span { background: var(--accent); }
+:root[data-theme="dark"] .welcome-illustration { background: #1d1d21; }
+:root[data-theme="dark"] .avatar { background: #29292f; color: #d4d4d8; }
 :root[data-theme="dark"] .editor-head,
 :root[data-theme="dark"] .editor-footer,
 :root[data-theme="dark"] .output,
 :root[data-theme="dark"] .profile,
 :root[data-theme="dark"] .lesson-nav { border-color: var(--line); }
 :root[data-theme="dark"] .run-button,
-:root[data-theme="dark"] .lesson-nav .next-button { background: #668c70; color: #101612; }
+:root[data-theme="dark"] .lesson-nav .next-button { background: var(--accent); color: #0a0a0b; }
 :root[data-theme="dark"] .run-button:hover,
-:root[data-theme="dark"] .next-button:hover { background: #82a98b; }
-:root[data-theme="dark"] .status.success { color: #8fc99a; }
+:root[data-theme="dark"] .next-button:hover { background: var(--accent-strong); }
+:root[data-theme="dark"] .status.success { color: var(--success); }
 :root[data-theme="dark"] .status.error,
-:root[data-theme="dark"] .status.incorrect { color: #e09a94; }
-:root[data-theme="dark"] .theme-toggle { --surface: #202622; --hover-surface: #2a332d; --line: #343d37; --ink: #e7ece8; --focus: #a4c9ac; }
+:root[data-theme="dark"] .status.incorrect { color: var(--error); }
+:root[data-theme="dark"] .theme-toggle { --surface: #161619; --hover-surface: #242429; --line: #2b2b30; --ink: #f5f5f7; --focus: #a78bfa; }
 :root[data-theme="dark"] .app-shell *:not(svg):not(.cm-content):not(.cm-content *) { color: inherit; }
 :root[data-theme="dark"] .app-shell { color: var(--ink); }
-:root[data-theme="dark"] .stats .xp,
-:root[data-theme="dark"] .reward,
-:root[data-theme="dark"] .goal > span,
-:root[data-theme="dark"] .status.success { color: #d9bd83; }
-:root[data-theme="dark"] .status.success { color: #8fc99a; }
-:root[data-theme="dark"] .status.error,
-:root[data-theme="dark"] .status.incorrect { color: #e09a94; }
+:root[data-theme="dark"] .stats .xp { color: var(--accent); }
+:root[data-theme="dark"] .reward { color: var(--warning); }
+:root[data-theme="dark"] .goal > span { color: var(--accent); }
+:root[data-theme="dark"] .chapter-card.locked { background: #111113; border-color: #242429; }
+:root[data-theme="dark"] .chapter-card:hover { border-color: var(--accent); }
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea { background-color: var(--input-surface); color: var(--ink); border-color: var(--line); }
+:root[data-theme="dark"] option { background: var(--elevated); color: var(--ink); }
+:root[data-theme="dark"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+:root[data-theme="dark"] ::-webkit-scrollbar-track { background: var(--page); }
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #3f3f46; border: 2px solid var(--page); border-radius: 99px; }
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+:root[data-theme="dark"] .language-toggle { background: #141417; border-color: #2b2b30; }
+:root[data-theme="dark"] .language-toggle button { color: var(--muted); }
+:root[data-theme="dark"] .language-toggle button[aria-pressed="true"] { background: var(--active-surface); color: var(--accent); }
+:root[data-theme="dark"] .dom-preview { background: #101012; }
 
 @media (min-width: 1500px) {
   .content { padding-left: clamp(38px, 3vw, 72px); padding-right: clamp(38px, 3vw, 72px); }
@@ -276,3 +303,5 @@ button:disabled { cursor: not-allowed; }
   .chapter-grid { gap: 8px; }
   .chapter-card { padding: 11px; }
 }
+
+
