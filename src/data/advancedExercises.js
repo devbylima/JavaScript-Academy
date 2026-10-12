@@ -53,3 +53,43 @@ export const advancedExercises = {
   ],
 };
 
+// Click lessons are graded from genuine interactions in the visible preview.
+// The hidden verifier never dispatches the event being taught.
+const manualDomSteps = {
+  1: [{ event: 'click', target: '#action', checks: [{ type: 'text', selector: '#output', equals: '1' }] }],
+  2: [{ event: 'click', target: '#action', checks: [{ type: 'text', selector: '#output', equals: 'Erledigt' }] }],
+  3: [{ event: 'click', target: '#action', checks: [{ type: 'text', selector: '#output', equals: '1' }] }],
+  4: [{ event: 'click', target: '#action', checks: [{ type: 'text', selector: '#output', equals: 'Hallo' }] }],
+  5: [{ event: 'click', target: '#action', checks: [{ type: 'text', selector: '#output', equals: 'action' }] }],
+  6: [{ event: 'click', target: '#action', checks: [{ type: 'text', selector: '#output', equals: '1' }] }],
+  7: [{ event: 'click', target: '#action', checks: [{ type: 'childCount', selector: '#list', equals: 1 }, { type: 'text', selector: '#list', equals: 'Neu' }] }],
+  8: [{ event: 'click', target: '#action', checks: [{ type: 'text', selector: '#output', equals: '2' }] }],
+  9: [
+    { event: 'click', target: '#action', checks: [{ type: 'text', selector: '#output', equals: '1' }] },
+    { event: 'click', target: '#action', checks: [{ type: 'text', selector: '#output', equals: '2' }] },
+    { event: 'click', target: '#reset', checks: [{ type: 'text', selector: '#output', equals: '0' }] },
+  ],
+};
+
+const domExercises = advancedExercises[10];
+const visibleSolutions = {
+  2: 'const button = document.querySelector("#action"); const output = document.querySelector("#output");\nbutton.addEventListener("click", () => { output.textContent = "Erledigt"; });',
+  3: 'let count = 0; const output = document.querySelector("#output");\ndocument.querySelector("#action").addEventListener("click", () => { count += 1; output.textContent = String(count); });',
+  4: 'const output = document.querySelector("#output");\ndocument.querySelector("#action").addEventListener("click", () => { output.textContent = "Hallo"; });',
+};
+for (const [number, steps] of Object.entries(manualDomSteps)) {
+  const exercise = domExercises[Number(number)];
+  exercise.manualInteraction = { steps };
+  exercise.playgroundType = 'dom';
+  exercise.check = '';
+  if (visibleSolutions[number]) exercise.solution = visibleSolutions[number];
+  if (number === '1') exercise.solution = exercise.solution.replace('button.addEventListener("click", () => { clicks += 1; });', 'const output = document.querySelector("#output"); button.addEventListener("click", () => { clicks += 1; output.textContent = String(clicks); });');
+  if (number === '5') exercise.solution = exercise.solution.replace('output.textContent = this.id;', 'output.textContent = this.id;');
+  if (number === '6') exercise.solution = exercise.solution.replace('counter.increment(); output.textContent = counter.count;', 'counter.increment(); output.textContent = String(counter.count);');
+  if (number === '8') exercise.solution = exercise.solution.replace('output.textContent = String(names.length);', 'output.textContent = String(names.length);');
+  exercise.expectedBehavior = `Führe den Code aus und absolviere danach ${steps.length === 1 ? 'die angezeigte Interaktion' : 'die Interaktionsfolge'} in der Live-Vorschau.`;
+}
+
+
+
+
