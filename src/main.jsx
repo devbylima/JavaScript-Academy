@@ -1,6 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BookOpen, Check, ChevronDown, ChevronRight, Code2, Flame, GraduationCap, Lightbulb, Play, RotateCcw, Sparkles, Terminal, Trophy } from 'lucide-react';
+import CodeMirror from '@uiw/react-codemirror';
+import { javascript } from '@codemirror/lang-javascript';
+import { advancedExercises } from './data/advancedExercises.js';
+import { chapterUnlocked, completeExercise, loadProgress, saveProgress } from './core/progress.js';
+import { gradeRun } from './core/grading.js';
 import './styles.css';
 
 const topics = [
@@ -87,10 +92,30 @@ const chapters = topics.map((topic, ci) => ({...topic, id:ci+1, exercises:topic.
     hint:[`Achte darauf, welche JavaScript-Idee hier im Mittelpunkt steht: ${title}.`, `Führe den Code Schritt für Schritt aus und nutze console.log(), um Zwischenwerte sichtbar zu machen.`, `Vergleiche dein Ergebnis mit dem Beispiel. Ein möglicher Ansatz steht im Startercode.`],
     solution:starter
   };
-})}));
+})})).map((chapter) => {
+  const curated = advancedExercises[chapter.id];
+  if (!curated) return chapter;
+  return { ...chapter, lesson: `In diesem Kapitel arbeitest du mit ${chapter.title.toLowerCase()}. Baue die Lösung schrittweise auf, führe sie aus und kontrolliere anschließend das Verhalten.`, exercises: curated.map((item, index) => ({
+    ...item, id: `c${chapter.id}-${index + 1}`, xp: index < 3 ? 10 : index < 7 ? 15 : 20,
+    expected: 'Alle Verhaltenstests bestanden', solutionExplanation: item.explanation, isDom: chapter.id === 10,
+  })) };
+});
 
-const KEY='js-academy-progress-v1';
-function readProgress(){ try{return JSON.parse(localStorage.getItem(KEY))||{done:[],xp:0,last:'c1-1'};}catch{return{done:[],xp:0,last:'c1-1'};} }
+function readProgress(){ return loadProgress(localStorage, chapters.reduce((n,c)=>n+c.exercises.length,0)); }
+function escapeScript(code){ return code.replace(/<\/script/gi, '<\\/script'); }
+function makeDocument(code, runId, checkCode = '') {
+  const safeCode=escapeScript(code), safeChecks=escapeScript(checkCode);
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"><style>body{font:14px system-ui;color:#293632;padding:16px;background:#fffefa}button{padding:8px 12px;border:0;border-radius:7px;background:#506d5b;color:white;margin:0 6px 8px 0}#output{padding:8px;background:#f4f5ef;border-radius:6px;min-height:20px}ul{padding-left:22px}</style></head><body><button id="action" type="button">Klick mich</button><button id="reset" type="button">Zurücksetzen</button><div id="output">0</div><ul id="list"></ul><script>
+    const runId=${JSON.stringify(runId)}, send=(type,value)=>parent.postMessage({source:'academy-runner',runId,type,value},'*');
+    const logs=[], checks=[];
+    console.log=(...args)=>{const line=args.map(value=>{try{return typeof value==='object'?JSON.stringify(value):String(value)}catch{return String(value)}}).join(' ');logs.push(line);send('log',line)};
+    console.error=(...args)=>send('error',args.map(String).join(' '));
+    window.onerror=message=>{send('error',String(message));return true};
+    const __assert=(label,passed,actual=passed)=>checks.push({label:String(label),passed:Boolean(passed),actual:String(actual)});
+    try{${safeCode}\n${safeChecks}\n}catch(error){send('error',error.name+': '+error.message)}
+    send('done',{logs,checks});
+  <\/script></body></html>`;
+}
 function App(){
   const [progress,setProgress]=useState(readProgress);
   const [current,setCurrent]=useState(progress.last||'c1-1');
@@ -98,69 +123,93 @@ function App(){
   const [result,setResult]=useState(null);
   const [hint,setHint]=useState(0);
   const [showSolution,setShowSolution]=useState(false);
+  const [previewDocument,setPreviewDocument]=useState('');
+  const previewRef=useRef(null);
+  const previewRunRef=useRef(null);
+  const previewTimerRef=useRef(null);
+  const activeRunRef=useRef(null);
   const exercise=useMemo(()=>chapters.flatMap(c=>c.exercises).find(e=>e.id===current)||chapters[0].exercises[0],[current]);
   const chapter=chapters[Number(current.split('-')[0].slice(1))-1];
   const total=chapters.reduce((n,c)=>n+c.exercises.length,0);
   const done=new Set(progress.done);
-  useEffect(()=>{setCode(exercise.starter);setResult(null);setHint(0);setShowSolution(false);setProgress(p=>({...p,last:exercise.id}));},[exercise]);
-  useEffect(()=>{localStorage.setItem(KEY,JSON.stringify(progress));},[progress]);
-  const unlocked=(id)=> id===1 || progress.done.includes(`c${id-1}-10`);
+  useEffect(()=>{setCode(exercise.starter);setResult(null);setHint(0);setShowSolution(false);setPreviewDocument('');previewRunRef.current=null;if(previewTimerRef.current){clearTimeout(previewTimerRef.current);previewTimerRef.current=null;}setProgress(p=>({...p,last:exercise.id}));},[exercise]);
+  useEffect(()=>{saveProgress(localStorage,progress);},[progress]);
+  useEffect(()=>{
+    const onPreviewMessage=(event)=>{
+      if(event.source!==previewRef.current?.contentWindow||event.data?.source!=='academy-runner'||event.data?.runId!==previewRunRef.current)return;
+      if(event.data.type==='done'&&previewTimerRef.current){clearTimeout(previewTimerRef.current);previewTimerRef.current=null;}
+    };
+    window.addEventListener('message',onPreviewMessage);
+    return ()=>{window.removeEventListener('message',onPreviewMessage);if(previewTimerRef.current)clearTimeout(previewTimerRef.current);};
+  },[]);
+  const unlocked=(id)=> chapterUnlocked(id,progress.done);
   function run(){
     setResult({status:'running',logs:[]});
+    if(activeRunRef.current){clearTimeout(activeRunRef.current.timer);activeRunRef.current.cleanup();}
+    const runId=`${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const frame=document.createElement('iframe');
     frame.setAttribute('sandbox','allow-scripts');
-    frame.title='Isolierte JavaScript-Ausführung';
+    frame.title='Isolierte Verhaltensprüfung';
     frame.style.cssText='position:fixed;width:1px;height:1px;left:-10000px;border:0';
-    const safeCode=code.replace(/<\/script/gi,'<\\/script');
-    frame.srcdoc=`<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';"><div id="action" role="button" tabindex="0">Klick mich</div><div id="output"></div><script>
-      const send=(type,value)=>parent.postMessage({source:'academy-runner',type,value},'*');
-      console.log=(...args)=>send('log',args.map(x=>{try{return typeof x==='object'?JSON.stringify(x):String(x)}catch{return String(x)}}).join(' '));
-      console.error=(...args)=>send('error',args.join(' '));
-      window.onerror=(message)=>{send('error',String(message));return true};
-      try { ${safeCode}\n } catch(e) { send('error',e.name+': '+e.message); }
-      send('done','');
-    <\/script>`;
+    frame.srcdoc=makeDocument(code,runId,exercise.check||'');
     document.body.append(frame);
     let logs=[], error=null, finished=false;
     const cleanup=()=>{window.removeEventListener('message',onMessage);frame.remove();};
-    const timer=setTimeout(()=>{if(!finished){finished=true;cleanup();setResult({status:'error',logs,error:'Zeitlimit erreicht (1,5 s). Prüfe deine Schleifen.'});}},1500);
+    const timer=setTimeout(()=>{if(!finished){finished=true;cleanup();if(exercise.isDom){setPreviewDocument('');previewRunRef.current=null;if(previewTimerRef.current){clearTimeout(previewTimerRef.current);previewTimerRef.current=null;}}setResult({status:'error',logs,error:'Zeitlimit erreicht (1,5 s). Der Prüfcode wurde beendet.'});}},1500);
+    activeRunRef.current={timer,cleanup};
     function onMessage(event){
-      if(event.source!==frame.contentWindow||event.data?.source!=='academy-runner')return;
+      if(event.source!==frame.contentWindow||event.data?.source!=='academy-runner'||event.data?.runId!==runId)return;
       if(event.data.type==='log')logs.push(event.data.value);
-      if(event.data.type==='error')error=event.data.value;
+      if(event.data.type==='error')error=String(event.data.value).slice(0,500);
       if(event.data.type==='done'&&!finished){
         finished=true;clearTimeout(timer);cleanup();
-        const actual=logs.join('\\n'), success=!error&&actual===exercise.expected;
-        setResult({status:success?'success':error?'error':'incorrect',logs,error,expected:exercise.expected,actual});
-        if(success&&!done.has(exercise.id))setProgress(p=>({...p,done:[...p.done,exercise.id],xp:p.xp+exercise.xp}));
+        const received=event.data.value||{};
+        const grade=gradeRun({logs:received.logs||logs,checks:received.checks||[],error,expectedOutput:exercise.expected});
+        setResult({...grade,logs:received.logs||logs,expected:exercise.expected});
+        if(grade.passed)setProgress(p=>completeExercise(p,exercise));
       }
     }
     window.addEventListener('message',onMessage);
+    if(exercise.isDom){
+      const previewId=`preview-${runId}`;
+      previewRunRef.current=previewId;
+      if(previewTimerRef.current)clearTimeout(previewTimerRef.current);
+      previewTimerRef.current=setTimeout(()=>{
+        if(previewRunRef.current===previewId){
+          previewRunRef.current=null;previewTimerRef.current=null;setPreviewDocument('');
+          setResult({status:'error',logs:[],error:'Die Vorschau wurde nach 1,5 s wegen eines möglichen Endloslaufs zurückgesetzt.'});
+        }
+      },1500);
+      setPreviewDocument(makeDocument(code,previewId,''));
+    }
   }
-  const next=chapter.exercises[(Number(current.split('-')[1]))] || chapters[(chapter.id)%chapters.length].exercises[0];
+  const exerciseIndex=Number(current.split('-')[1])-1;
+  const next=chapter.exercises[exerciseIndex+1] || (unlocked(chapter.id+1)?chapters[chapter.id%chapters.length].exercises[0]:exercise);
   const percent=Math.round(done.size/total*100);
   return <div className="app-shell">
     <aside className="sidebar"><a className="brand" href="#"><span className="brand-mark"><Code2 size={20}/></span><span>javascript<span className="brand-soft">academy</span></span></a>
       <div className="side-label">LERNPFAD</div><nav>{chapters.map(c=><button key={c.id} className={chapter.id===c.id?'chapter active':'chapter'} disabled={!unlocked(c.id)} onClick={()=>setCurrent(c.exercises[0].id)}><span className="chapter-icon">{c.icon}</span><span className="chapter-name">{String(c.id).padStart(2,'0')}　{c.title}</span>{chapter.id===c.id&&<ChevronRight size={16}/>}</button>)}</nav>
-      <div className="sidebar-bottom"><div className="streak"><span>✿</span><div><b>Weiter so!</b><small>Jeder Schritt zählt.</small></div></div><div className="profile"><div className="avatar">K</div><div><b>JavaScript Learner</b><small>Level {Math.floor(progress.xp/100)+1}</small></div><ChevronDown size={16}/></div></div>
+      <div className="sidebar-bottom"><div className="streak"><span>✿</span><div><b>Dein Lernplatz</b><small>In deinem Tempo.</small></div></div><div className="profile"><div className="avatar">K</div><div><b>JavaScript Learner</b><small>Level {Math.floor(progress.xp/100)+1}</small></div><ChevronDown size={16}/></div></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="crumb">Dein Lernbereich <ChevronRight size={14}/><b>{chapter.title}</b></div><div className="stats"><span><Flame size={16}/> {Math.floor(progress.xp/50)} Tage</span><span className="xp"><Sparkles size={16}/> {progress.xp} XP</span><div className="avatar small">K</div></div></header>
+      <header className="topbar"><div className="crumb">Dein Lernbereich <ChevronRight size={14}/><b>{chapter.title}</b></div><div className="stats"><span className="xp"><Sparkles size={16}/> {progress.xp} XP</span><div className="avatar small">K</div></div></header>
       <div className="content">
         <section className="welcome"><div><div className="eyebrow">MONTAG, 12. OKTOBER 2026 <span>✳</span></div><h1>Hallo, Katja <span>👋</span></h1><p>Ein kleiner Schritt heute bringt dich deinem Ziel näher.</p></div><div className="welcome-illustration"><span className="sun">☼</span><span className="plant">♧</span></div></section>
         <section className="overview"><div className="overview-head"><div><h2>Dein Lernpfad</h2><p>Du bist auf einem guten Weg. Mach weiter so!</p></div><div className="progress-ring" style={{'--progress':percent*3.6+'deg'}}><div><b>{percent}%</b><small>GESAMT</small></div></div></div><div className="progress-line"><span style={{width:percent+'%'}}/></div><div className="overview-metrics"><div><span className="metric-icon rose"><Check size={17}/></span><b>{done.size}<small>Übungen erledigt</small></b></div><div><span className="metric-icon sage"><Trophy size={17}/></span><b>{progress.xp}<small>Erfahrungspunkte</small></b></div><div><span className="metric-icon lilac"><GraduationCap size={18}/></span><b>Level {Math.floor(progress.xp/100)+1}<small>JavaScript Starter</small></b></div></div></section>
         <section className="lesson-heading"><div><span className="section-kicker">WEITERLERNEN</span><h2>Deine nächste Lektion</h2></div><button className="text-button" onClick={()=>setCurrent(progress.last||'c1-1')}>Letzten Stand öffnen <ChevronRight size={16}/></button></section>
         <section className="workspace">
-          <div className="task-panel"><div className="task-top"><span className="task-icon">{chapter.icon}</span><span className="difficulty">{exercise.difficulty}</span><span className="exercise-number">ÜBUNG {current.split('-')[1]} / 10</span></div><h2>{exercise.title}</h2><p>{exercise.description}</p><div className="goal"><span>✳</span><div><b>Dein Lernziel</b><p>Nutze <code>{chapter.title}</code>, um das erwartete Verhalten zu erreichen.</p></div></div><div className="task-actions"><button className="hint-button" onClick={()=>setHint(n=>Math.min(n+1,3))}><Lightbulb size={16}/> Tipp anzeigen <span>{hint}/3</span></button>{hint>0&&<div className="hint-card"><b>Tipp {hint}</b><p>{exercise.hint[hint-1]}</p></div>}<button className="solution-button" onClick={()=>setShowSolution(v=>!v)}>{showSolution?'Musterlösung verbergen':'Musterlösung anzeigen'}</button>{showSolution&&<div className="solution"><b>Musterlösung</b><pre>{exercise.solution}</pre><p>Die Lösung gibt <code>{exercise.expected}</code> aus.</p></div>}<div className="reward"><Sparkles size={15}/> +{exercise.xp} XP bei Erfolg</div></div></div>
-          <div className="editor-panel"><div className="editor-head"><div><Code2 size={16}/><b>Dein Code</b><span>JavaScript</span></div><button className="reset" onClick={()=>{setCode(exercise.starter);setResult(null)}}><RotateCcw size={14}/> Zurücksetzen</button></div><div className="code-area"><div className="line-numbers">{code.split('\n').map((_,i)=><span key={i}>{i+1}</span>)}</div><textarea aria-label="JavaScript-Code bearbeiten" spellCheck="false" value={code} onChange={e=>setCode(e.target.value)} /></div><div className="editor-footer"><span><span className="dot"/> Änderungen werden lokal ausgeführt</span><button className="run-button" onClick={run}><Play size={15} fill="currentColor"/> Code ausführen</button></div>
+          <div className="task-panel"><div className="task-top"><span className="task-icon">{chapter.icon}</span><span className="difficulty">{exercise.difficulty}</span><span className="exercise-number">ÜBUNG {current.split('-')[1]} / 10</span></div><h2>{exercise.title}</h2><p>{exercise.description}</p><div className="goal"><span>✳</span><div><b>Dein Lernziel</b><p>{chapter.lesson||`Nutze ${chapter.title}, um die Aufgabe zu lösen und die Ausgabe zu überprüfen.`}</p></div></div><div className="task-actions"><button className="hint-button" onClick={()=>setHint(n=>Math.min(n+1,3))}><Lightbulb size={16}/> Tipp anzeigen <span>{hint}/3</span></button>{hint>0&&<div className="hint-card"><b>{['Denkanstoß','Konzept','Codegerüst'][hint-1]}</b><p>{exercise.hint[hint-1]}</p></div>}<button className="solution-button" onClick={()=>setShowSolution(v=>!v)}>{showSolution?'Musterlösung verbergen':'Musterlösung anzeigen'}</button>{showSolution&&<div className="solution"><b>Musterlösung</b><pre>{exercise.solution}</pre><p>{exercise.solutionExplanation||'Führe den Code aus und vergleiche die Ausgabe mit dem erwarteten Ergebnis.'}</p></div>}<div className="reward"><Sparkles size={15}/> +{exercise.xp} XP bei Erfolg</div></div></div>
+          <div className="editor-panel"><div className="editor-head"><div><Code2 size={16}/><b>Dein Code</b><span>JavaScript</span></div><button className="reset" onClick={()=>{setCode(exercise.starter);setResult(null);setPreviewDocument('');previewRunRef.current=null;if(previewTimerRef.current){clearTimeout(previewTimerRef.current);previewTimerRef.current=null;}}}><RotateCcw size={14}/> Zurücksetzen</button></div><div className="code-area"><CodeMirror aria-label="JavaScript-Code bearbeiten" value={code} height="204px" extensions={[javascript()]} onChange={setCode} basicSetup={{lineNumbers:true,foldGutter:true,highlightActiveLine:true,indentOnInput:true}} /></div><div className="editor-footer"><span><span className="dot"/> Änderungen bleiben in diesem Browser</span><button className="run-button" onClick={run}><Play size={15} fill="currentColor"/> Code ausführen</button></div>
             <div className="output"><div className="output-head"><span><Terminal size={15}/> AUSGABE</span>{result&&<span className={'status '+result.status}>{result.status==='success'?'✓ Richtig':result.status==='running'?'Läuft …':result.status==='error'?'Fehler':'Noch nicht ganz'}</span>}</div><div className="output-body">{!result?<span className="muted">Starte deinen Code, um das Ergebnis zu sehen.</span>:result.status==='running'?<span className="muted">Code wird ausgeführt …</span>:<><pre>{result.error||result.actual||'(Keine Ausgabe)'}</pre>{result.status!=='error'&&<small>{result.status==='success'?'Prima! Deine Ausgabe stimmt.':`Erwartet: ${result.expected}`}</small>}</>}</div></div>
           </div>
+          {exercise.isDom&&<div className="preview-panel"><div className="editor-head"><div><Code2 size={16}/><b>Live-Vorschau</b><span>isoliertes HTML</span></div></div><iframe ref={previewRef} className="dom-preview" title="Interaktive DOM-Vorschau" sandbox="allow-scripts" srcDoc={previewDocument||'<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'"><button id="action">Klick mich</button><button id="reset">Zurücksetzen</button><div id="output">Hier erscheint die Änderung</div><ul id="list"></ul>'}/><p className="preview-note">Führe deinen Code aus und klicke anschließend die Elemente in dieser Vorschau.</p></div>}
         </section>
         <section className="lesson-nav"><button onClick={()=>{const n=Number(current.split('-')[1]);if(n>1)setCurrent(`c${chapter.id}-${n-1}`)}} disabled={current.endsWith('-1')}>← Vorherige Übung</button><span>{done.size} von {total} Übungen abgeschlossen</span><button className="next-button" onClick={()=>setCurrent(next.id)}>Nächste Übung <ChevronRight size={15}/></button></section>
-        <section className="chapters"><div className="section-title"><div><span className="section-kicker">DAS CURRICULUM</span><h2>Kapitel entdecken</h2></div><button className="text-button">Alle Kapitel <ChevronRight size={16}/></button></div><div className="chapter-grid">{chapters.slice(0,4).map(c=><button key={c.id} className={'chapter-card '+(!unlocked(c.id)?'locked':'')} onClick={()=>unlocked(c.id)&&setCurrent(c.exercises[0].id)}><span className="card-icon">{c.icon}</span><small>KAPITEL {String(c.id).padStart(2,'0')}</small><b>{c.title}</b><span className="card-progress">{c.exercises.filter(e=>done.has(e.id)).length} / 10 Übungen <ChevronRight size={14}/></span></button>)}</div></section>
+        <section className="chapters"><div className="section-title"><div><span className="section-kicker">DAS CURRICULUM</span><h2>Kapitel entdecken</h2></div><button className="text-button" onClick={()=>setCurrent('c1-1')}>Von vorn beginnen <RotateCcw size={14}/></button></div><div className="chapter-grid">{chapters.map(c=><button key={c.id} className={'chapter-card '+(!unlocked(c.id)?'locked':'')} title={!unlocked(c.id)?'Schließe das vorherige Kapitel ab, um dieses Kapitel freizuschalten.':'Kapitel wiederholen'} onClick={()=>unlocked(c.id)&&setCurrent(c.exercises[0].id)}><span className="card-icon">{c.icon}</span><small>KAPITEL {String(c.id).padStart(2,'0')} {!unlocked(c.id)&&'· GESPERRT'}</small><b>{c.title}</b><span className="card-progress">{c.exercises.filter(e=>done.has(e.id)).length} / 10 Übungen {unlocked(c.id)?<ChevronRight size={14}/>:<span aria-hidden="true">🔒</span>}</span></button>)}</div></section>
         <footer><BookOpen size={14}/> Mit Neugier lernen, Schritt für Schritt.</footer>
       </div>
     </main>
   </div>
 }
 createRoot(document.getElementById('root')).render(<App/>);
+
