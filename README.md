@@ -11,6 +11,12 @@ pnpm dev
 
 Create a production build with `pnpm build` and run the automated checks with `pnpm test` (Node's built-in test runner).
 
+## Deploy to GitHub Pages
+
+The Vite base path is configured for this repository at `/JavaScript-Academy/`. The `Build and deploy to GitHub Pages` workflow runs the locked pnpm install, tests, and production build on pull requests targeting `main`; after merge it deploys `dist` from `main`. It can also be started manually from `main` with `workflow_dispatch`.
+
+After merging, open **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions**. The first successful workflow deployment publishes the app at `https://devbylima.github.io/JavaScript-Academy/`. The app uses hash-based language navigation (`#` and `#sql`), so refreshing either route returns to the same learning path.
+
 ## Learning app
 
 - Ten chapters with ten exercises each. Chapters 7–10 have incomplete starter code, ordered difficulty, concrete three-stage hints, explanatory solutions, and behavior-based checks.
