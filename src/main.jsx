@@ -145,7 +145,12 @@ function makeDocument(code, runId, checkCode = '', theme = 'light', options = {}
 }
 function App(){
   const [theme,setTheme]=useState(()=>readTheme());
-  const [language,setLanguage]=useState(()=>{try{return localStorage.getItem('javascript-academy-language')==='sql'?'sql':'javascript';}catch{return 'javascript';}});
+  const [language,setLanguageState]=useState(()=>{if(window.location.hash==='#sql')return 'sql';try{return localStorage.getItem('javascript-academy-language')==='sql'?'sql':'javascript';}catch{return 'javascript';}});
+  const setLanguage=(next)=>{
+    setLanguageState(next);
+    const nextHash=next==='sql'?'#sql':'#';
+    if(window.location.hash!==nextHash)window.history.replaceState(null,'',`${window.location.pathname}${window.location.search}${nextHash}`);
+  };
   const [progress,setProgress]=useState(readProgress);
   const [current,setCurrent]=useState(progress.last||'c1-1');
   const [code,setCode]=useState('');
@@ -165,6 +170,7 @@ function App(){
   useEffect(()=>{saveProgress(localStorage,progress);},[progress]);
   useEffect(()=>{document.documentElement.dataset.theme=theme;document.documentElement.style.colorScheme=theme;const themeColor=document.querySelector('meta[name="theme-color"]');if(themeColor)themeColor.content=theme==='dark'?'#0A0A0B':'#f8f6f0';saveTheme(theme);},[theme]);
   useEffect(()=>{try{localStorage.setItem('javascript-academy-language',language);}catch{/* storage may be disabled */}},[language]);
+  useEffect(()=>{const onHashChange=()=>setLanguageState(window.location.hash==='#sql'?'sql':'javascript');window.addEventListener('hashchange',onHashChange);return()=>window.removeEventListener('hashchange',onHashChange);},[]);
   useEffect(()=>{
     const onPreviewMessage=(event)=>{
       if(event.source!==previewRef.current?.contentWindow||event.data?.source!=='academy-runner'||event.data?.runId!==previewRunRef.current)return;
